@@ -54,6 +54,10 @@
         "to": "caveman"
       },
       {
+        "from": "../CHANGELOG.md",
+        "to": "CHANGELOG.md"
+      },
+      {
         "from": "vendor/rtk",
         "to": "bin"
       }

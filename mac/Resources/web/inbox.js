@@ -178,6 +178,8 @@ window.Inbox = (() => {
     const cur = rels.length ? C.current(rels) : null;
     for (const r of rels) {
       if (S.build && r.build > S.build) continue;
+      // A release with no date (Windows: one that never ran on this PC, releasenotes.js) has no place among the news.
+      if (!r.publishedAt) continue;
       const isCur = r === cur;
       out.push({ id: `r:${r.version}`, kind: 'release', f: 'news', at: +new Date(r.publishedAt), unread: isCur && (C.wnUnread() || relFresh), rel: r, current: isCur });
     }

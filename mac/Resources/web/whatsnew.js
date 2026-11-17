@@ -1,29 +1,35 @@
 'use strict';
 
-// What's new, and tips (the Mac app; on Windows this is off and nothing here shows).
-//  · What's new: every Mac release's notes, from the API (GET v1/releases, newest first). They show after an update (the
+// What's new, and tips (tips on the Mac only).
+//  · What's new: every release's notes, newest first: on the Mac from the API (GET v1/releases), on Windows from the
+//    CHANGELOG inside the app (the "releases" call, windows/src/releasenotes.js). They show after an update (the
 //    corner's "updated" note, messages.js), in the notifications, in Settings and under Help → What's New (cloud.js):
 //    only this platform's lines, the changes you voted for on the Roadmap first and marked, the first few as the
 //    highlights and the rest behind "all changes".
 //  · Tips: Help → Tips lists the features few people find (cloud.js). The dashboard also shows one of them, at most one a
-//    day, beside its control, and only to someone who never used that feature; × puts it away for good. No tour.
+//    day, beside its control, and only to someone who never used that feature; × puts it away for good. No tour. Its
+//    tips name the Mac's keys, so Windows has none.
 window.WhatsNew = (() => {
-  const ON = window.__platform !== 'win32';
+  const WIN = window.__platform === 'win32';
+  const ON = true;
+  const TIPS_ON = !WIN;
   const api = (path) =>
     window.webkit.messageHandlers.cloud.postMessage({ type: 'social', method: 'GET', path }).catch(() => ({ error: 'offline' }));
   const TOP = 3; // the highlights: the corner's note and the window show these first
 
   // ---------- a release's lines ----------
-  // A line for the other platform goes: "Windows: …", or one marked "(Windows only)" or "(Windows)". A line marked for
-  // this one loses the mark ("(Mac)" says nothing on a Mac).
-  const OTHER = /^\s*windows\s*:|\(\s*windows(\s+only)?\s*\)/i;
-  const OWN = /\s*\(\s*mac(os)?(\s+only)?\s*\)/gi;
+  // A line for the other platform goes: on the Mac "Windows: …", or one marked "(Windows only)" or "(Windows)"; on
+  // Windows "Mac: …", one marked "(Mac)" or "(Mac only)", or one naming the Mac's keys (⌘, ⌥). A line marked for this one
+  // loses the mark ("(Mac)" says nothing on a Mac, "Windows: " nothing on Windows).
+  const OTHER = WIN ? /^\s*mac(os)?\s*:|\(\s*mac(os)?(\s+only)?\s*\)|[⌘⌥]/i : /^\s*windows\s*:|\(\s*windows(\s+only)?\s*\)/i;
+  const OWN = WIN ? /^\s*windows\s*:\s*|\s*\(\s*windows(\s+only)?\s*\)/gi : /\s*\(\s*mac(os)?(\s+only)?\s*\)/gi;
   const lines = (notes) =>
     String(notes || '')
       .split(/\n+/)
       .map((l) => l.replace(/^\s*[-•*]\s*/, '').trim())
       .filter((l) => l && !OTHER.test(l))
-      .map((l) => l.replace(OWN, '').trim());
+      .map((l) => l.replace(OWN, '').trim())
+      .filter(Boolean);
   // One short line, for the corner and the notifications: no credits, up to its first full stop or semicolon (the
   // corner cuts what's still too long).
   const short = (l) => String(l).replace(/\.?\s*\bThanks to\b.*$/i, '').split(/[.;]\s/)[0].trim();
@@ -55,9 +61,13 @@ window.WhatsNew = (() => {
   const releases = (again) => {
     if (!ON) return Promise.resolve(null);
     if (list && !again) return Promise.resolve(list);
+    // Windows: the app's own CHANGELOG (no network, no build numbers).
+    const ask = () => WIN
+      ? window.webkit.messageHandlers.cloud.postMessage({ type: 'releases' }).catch(() => ({ error: 'offline' }))
+      : api('v1/releases?limit=8');
     loading =
       loading ||
-      api('v1/releases?limit=8').then((r) => {
+      ask().then((r) => {
         loading = null;
         if (r && Array.isArray(r.releases)) list = r.releases;
         return list;
@@ -135,7 +145,7 @@ window.WhatsNew = (() => {
   const tips = (keyOf) => TIPS.map((t) => ({ id: t.id, title: t.title, text: tipText(t, keyOf) })).filter((t) => t.text !== null);
 
   // The dashboard's tip of the day. What it keeps, on this computer: the features used, the tips put away, and today's.
-  const DASH = ON && !!document.getElementById('app');
+  const DASH = TIPS_ON && !!document.getElementById('app');
   const KEY = 'whatsnew.tips';
   let T = { used: [], gone: [], day: '', id: '' };
   try {
@@ -260,5 +270,5 @@ window.WhatsNew = (() => {
     if (s && s.wheel) used('wheel');
   };
 
-  return { on: ON, TOP, lines, short, arrange, releases, find, release, voted, keys, tips, state };
+  return { on: ON, tipsOn: TIPS_ON, TOP, lines, short, arrange, releases, find, release, voted, keys, tips, state };
 })();

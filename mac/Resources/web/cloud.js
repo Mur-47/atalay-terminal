@@ -228,7 +228,9 @@ window.Cloud = (() => {
           <ul class="up-notes">${(top.length ? top : [{ text: 'fixes and improvements' }]).map((l) => li(l)).join('')}${more.map((l) => li(l, true)).join('')}</ul>
           ${more.length ? `<button type="button" class="wn-more">all changes (${top.length + more.length}) ›</button>` : ''}
         </div>
-        <div class="pk-foot"><span class="pk-sel note" title="${esc(new Date(r.publishedAt).toLocaleString())}">came out ${ago(r.publishedAt)}</span><button class="pk-ok wn-ok">ok</button></div>
+        <div class="pk-foot">${r.publishedAt
+          ? `<span class="pk-sel note" title="${esc(new Date(r.publishedAt).toLocaleString())}">${window.__platform === 'win32' ? 'on this PC since' : 'came out'} ${ago(r.publishedAt)}</span>`
+          : '<span class="pk-sel note">Help → What\'s New, any time</span>'}<button class="pk-ok wn-ok">ok</button></div>
       </div>`;
     const all = q('.wn-more');
     if (all) {
@@ -251,7 +253,7 @@ window.Cloud = (() => {
   }
   // Help → Tips: the features few people find, a sentence each, with the keys as they're set now.
   async function openTips() {
-    if (!S || !window.WhatsNew?.on || modal === 'first' || modal === 'update') return;
+    if (!S || !window.WhatsNew?.tipsOn || modal === 'first' || modal === 'update') return;
     const keyOf = await WhatsNew.keys();
     if (modal === 'first' || modal === 'update') return;
     wnBack = modal === 'menu' ? window.Settings?.current() || 'settings' : modal === 'whatsnew' || modal === 'tips' ? wnBack : null;

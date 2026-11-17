@@ -73,6 +73,7 @@ if (guard) {
 const { createEngine } = require('./engine');
 const { createGit } = require('./git');
 const { createCloud } = require('./cloud');
+const { createReleaseNotes } = require('./releasenotes');
 const { createTokenLedger } = require('./tokenledger');
 const { createThemes } = require('./themes');
 const { createAIColors } = require('./aicolors');
@@ -146,6 +147,9 @@ const settings = (() => {
     },
   };
 })();
+
+// What's new: each release's notes from the CHANGELOG inside the app (releasenotes.js), dated by when it first ran here.
+const releaseNotes = createReleaseNotes({ app, seen: () => settings.get('releasesSeen') });
 
 // ---------- the parts ----------
 // The dashboard window: the chats list beside the dashboard's page, as the Mac's split view has them (two views, so
@@ -1751,8 +1755,7 @@ function showShortcuts() {
 ipcMain.on('atl:wheel', () => showShortcuts());
 
 // ---------- what's new and the tips ----------
-// What's new is off on Windows (whatsnew.js), so the page never asks; kept as on the Mac for when it's turned on. Windows
-// has no build number (cloud.js), so `whatsNewUnread` would hold the app's version.
+// As on the Mac, but Windows has no build number (cloud.js), so `whatsNewUnread` holds the app's version.
 function pushWhatsNew() {
   const state = { unread: settings.get('whatsNewUnread') === app.getVersion(), wheel: settings.get('tipUsedWheel') === true };
   toDash(`whatsNew(${JSON.stringify({ state })})`);
@@ -1762,6 +1765,20 @@ function wheelOpened() {
   if (settings.get('tipUsedWheel') === true) return;
   settings.set('tipUsedWheel', true);
   pushWhatsNew();
+}
+// A newer version than last time (it updated itself, maybe while the user was away): say so in the corner, with what's
+// new in it, once, as on the Mac; its notes count as unread in the notifications until they're opened. The first run of
+// all (a fresh install) says nothing. Each version is dated by its first run here (releasenotes.js).
+function announceUpdated() {
+  const version = app.getVersion(), last = settings.get('lastRunVersion');
+  const seen = settings.get('releasesSeen') || {};
+  if (typeof seen[version] !== 'number') settings.set('releasesSeen', { ...seen, [version]: Date.now() });
+  if (last === version) return;
+  if (typeof last === 'string' && newerVersion(version, last)) {
+    settings.set('whatsNewUnread', version);
+    toNotices(`updated(${JSON.stringify(version)}, 0)`);
+  }
+  settings.set('lastRunVersion', version);
 }
 // Help > What's New ('notes') or Tips ('tips'), and the "updated" note's click: the dashboard in front, the window open.
 function openWhatsNew(what) {
@@ -2484,6 +2501,8 @@ ipcMain.handle('atl:post', async (e, name, body) => {
         if (body.type === 'updateRightAway') return updates.setRightAway(body.on), cloudState();
         if (body.type === 'openChat') return openFriendChat(body.id);
         if (body.type === 'state') return cloudState();
+        // What's new (whatsnew.js): the releases' notes, from the app's own CHANGELOG.
+        if (body.type === 'releases') return { releases: releaseNotes.list(newerVersion) };
         if (body.type === 'openSignIn') return openSignIn(body.url);
         if (body.type === 'terminalFont') return await terminalFont(body.size, body.family);
         if (body.type === 'terminalFonts') return { families: await termFont.families() };
@@ -2598,6 +2617,7 @@ function buildMenu() {
         { label: 'End This Terminal', click: () => { const f = focusedChat(); if (f) endTerminal(f[0]); } },
       ],
     },
+    { label: 'Help', submenu: [{ label: "What's New", click: () => openWhatsNew('notes') }] },
   ]));
 }
 
@@ -2626,8 +2646,7 @@ app.whenReady().then(() => {
     setTimeout(warmChat, 3000);
     // The PowerShell font scan (3-5 s) runs in the background, so Settings > Terminals opens with its list ready.
     setTimeout(() => termFont.warm(), 20_000);
-    // No "updated" note in the corner, unlike the Mac: what's new is off on Windows (whatsnew.js), so its "see what's new"
-    // would lead nowhere.
+    announceUpdated();
   }
   // The orbit's cinematic camera waits for minutes without input; the terminals ride the orbit as cars.
   setInterval(() => {
